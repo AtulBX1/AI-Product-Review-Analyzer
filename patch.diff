@@ -1,0 +1,210 @@
+diff --git a/routes/analyze.py b/routes/analyze.py
+index b6db8284ef7530aed468569959f336efeb4c851a..a0a29884aad4dfaf8556018e434aa54c31e62fbf 100644
+--- a/routes/analyze.py
++++ b/routes/analyze.py
+@@ -1,76 +1,88 @@
+ from flask import Blueprint, request, jsonify
+ from app import db
+ from models.analysis import Analysis
+ from utils.ai_client import AIClient
+ import json
+ 
++VALID_DEPTHS = {'quick', 'deep', 'expert'}
++VALID_PLATFORMS = {'all', 'amazon', 'flipkart', 'g2', 'trustpilot'}
++MAX_PRODUCT_LENGTH = 200
++
+ analyze_bp = Blueprint('analyze', __name__)
+ client = AIClient()
+ 
++
++def _normalize_depth(depth):
++    normalized = (depth or 'quick').strip().lower()
++    return normalized if normalized in VALID_DEPTHS else 'quick'
++
++
++def _normalize_platform(platform):
++    normalized = (platform or 'all').strip().lower()
++    return normalized if normalized in VALID_PLATFORMS else 'all'
++
++
+ @analyze_bp.route('/api/analyze', methods=['POST'])
+ def analyze():
+-    data = request.json
++    data = request.json or {}
+     product = data.get('product', '').strip()
+-    platform = data.get('platform', 'all')
+-    depth = data.get('depth', 'quick')
+-
+-    if not product or len(product) < 3 or len(product) > 200:
+-        return jsonify({'error': 'Product name must be between 3 and 200 characters'}), 400
++    platform = _normalize_platform(data.get('platform', 'all'))
++    depth = _normalize_depth(data.get('depth', 'quick'))
+ 
+-    if depth not in ['quick', 'deep', 'expert']:
+-        depth = 'quick'
+-        
+-    if platform not in ['all', 'amazon', 'flipkart', 'g2', 'trustpilot']:
+-        platform = 'all'
++    if not product or len(product) > MAX_PRODUCT_LENGTH:
++        return jsonify({'error': f'Product name must be between 1 and {MAX_PRODUCT_LENGTH} characters'}), 400
+ 
+     try:
+         print(f"[ANALYZE] Product: {product} | Platform: {platform} | Depth: {depth}")
+         result = client.analyze(product, platform, depth)
+         analysis = Analysis(
+             product_name=result.get('product_name', product),
+             platform=platform,
+             depth=depth,
+             sentiment_score=result['sentiment']['score'],
+             positive_pct=result['sentiment']['positive_pct'],
+             negative_pct=result['sentiment']['negative_pct'],
+             neutral_pct=result['sentiment']['neutral_pct'],
+             recommendation_rate=result['sentiment']['recommendation_rate'],
+             total_reviews=result.get('total_reviews_analyzed', 0),
+             pros=json.dumps(result.get('pros', [])),
+             cons=json.dumps(result.get('cons', [])),
+             hidden_patterns=json.dumps(result.get('hidden_patterns', [])),
+             personas=json.dumps(result.get('personas', [])),
+             feature_requests=json.dumps(result.get('feature_requests', [])),
+             sample_reviews=json.dumps(result.get('sample_reviews', [])),
+             verdict=json.dumps(result.get('verdict', {}))
+         )
+         db.session.add(analysis)
+         db.session.commit()
+         return jsonify(analysis.to_dict())
+     except Exception as e:
+         return jsonify({'error': 'Analysis failed', 'detail': str(e)}), 500
+ 
++
+ @analyze_bp.route('/api/analyze/popular', methods=['GET'])
+ def popular():
+     return jsonify([
+         {"name": "Sony WH-1000XM5", "category": "Electronics"},
+         {"name": "Samsung Galaxy S24", "category": "Smartphones"},
+         {"name": "boAt Airdopes 141", "category": "Earbuds"},
+         {"name": "Kindle Paperwhite", "category": "E-readers"},
+         {"name": "OnePlus Nord CE4", "category": "Smartphones"},
+         {"name": "JBL Flip 6", "category": "Speakers"}
+     ])
+ 
++
+ @analyze_bp.route('/api/analyze/test', methods=['GET'])
+ def test():
+-    product = request.args.get('product', 'iPhone 15')
++    product = request.args.get('product', 'iPhone 15').strip()
+     try:
+         result = client.analyze(product, 'all', 'quick')
+         return jsonify(result)
+     except Exception as e:
+         return jsonify({'error': str(e)}), 500
+ 
++
+ @analyze_bp.route('/api/analyze/<id>', methods=['GET'])
+ def get_analysis(id):
+     analysis = Analysis.query.get_or_404(id)
+     return jsonify(analysis.to_dict())
+diff --git a/utils/ai_client.py b/utils/ai_client.py
+index df05a4daeac35630b363a2107000d7ec168b2edf..682f47001de66543832ecd8d4d3655501f717108 100644
+--- a/utils/ai_client.py
++++ b/utils/ai_client.py
+@@ -1,43 +1,53 @@
+ import google.generativeai as genai
+ import json
+ import os
+ from dotenv import load_dotenv
+ 
+ load_dotenv()
+ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+ 
+ class AIClient:
+     def __init__(self):
+         self.model = genai.GenerativeModel(
+             model_name="gemini-2.0-flash",
+             generation_config={
+                 "response_mime_type": "application/json",
+                 "max_output_tokens": 3000
+             }
+         )
+ 
++    @staticmethod
++    def _parse_json_response(response_text):
++        text = response_text.strip()
++        if text.startswith("```"):
++            text = text.split("```", 1)[1]
++            if text.startswith("json"):
++                text = text[4:]
++            text = text.rsplit("```", 1)[0]
++        return json.loads(text.strip())
++
+     def analyze(self, product, platform, depth):
+         prompt = f"""You are an expert product analyst. Based on your knowledge of real customer reviews for "{product}", provide a thorough analysis.
+ 
+ Platform focus: {platform}
+ Analysis depth: {depth}
+ 
+ Return ONLY a valid JSON object with this exact structure (no markdown, no explanation, just JSON):
+ 
+ {{
+   "product_name": "{product}",
+   "total_reviews_analyzed": 45,
+   "sentiment": {{
+     "score": 76,
+     "positive_pct": 68.5,
+     "negative_pct": 21.3,
+     "neutral_pct": 10.2,
+     "recommendation_rate": 79.0
+   }},
+   "pros": [
+     {{"text": "Excellent sound quality", "frequency": 18}},
+     {{"text": "Comfortable for long use", "frequency": 14}}
+   ],
+   "cons": [
+     {{"text": "Battery drains fast", "frequency": 11}},
+     {{"text": "Expensive price point", "frequency": 9}}
+@@ -49,42 +59,30 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no expla
+     {{"name": "Daily Commuter", "use_case": "Uses during travel and gym", "satisfaction": 82, "quote": "Best purchase for my daily commute"}},
+     {{"name": "Work From Home User", "use_case": "Long video calls and focus work", "satisfaction": 71, "quote": "Good but mic quality could be better"}},
+     {{"name": "Budget-Conscious Buyer", "use_case": "First premium product purchase", "satisfaction": 65, "quote": "Decent but expected more for the price"}}
+   ],
+   "feature_requests": [
+     {{"feature": "Better microphone quality", "demand_pct": 38.5}},
+     {{"feature": "Longer battery life", "demand_pct": 29.2}}
+   ],
+   "sample_reviews": [
+     {{"stars": 5, "snippet": "Absolutely love this product, best I have ever used", "type": "positive"}},
+     {{"stars": 2, "snippet": "Stopped working after 3 months, very disappointed", "type": "negative"}},
+     {{"stars": 4, "snippet": "Great overall but has some minor issues worth noting", "type": "detailed"}}
+   ],
+   "verdict": {{
+     "decision": "YES",
+     "ideal_for": ["Daily commuters", "Music enthusiasts", "Remote workers"],
+     "avoid_if": ["Tight budget", "Need premium mic quality", "Rough usage conditions"],
+     "vs_competitors": "Comparable to similar products but stands out in build quality"
+   }}
+ }}
+ 
+ Now analyze {product} with real data. Replace all example values with accurate information about this specific product."""
+ 
+         try:
+             response = self.model.generate_content(prompt)
+-            text = response.text.strip()
+-            if text.startswith("```"):
+-                text = text.split("```")[1]
+-                if text.startswith("json"):
+-                    text = text[4:]
+-                text = text.rsplit("```", 1)[0]
+-            return json.loads(text.strip())
+-        except Exception:
++            return self._parse_json_response(response.text)
++        except json.JSONDecodeError:
+             retry_prompt = prompt + "\n\nReturn ONLY raw JSON. No markdown. No explanation. Just the JSON object."
+-            response = self.model.generate_content(retry_prompt)
+-            text = response.text.strip()
+-            if text.startswith("```"):
+-                text = text.split("```")[1]
+-                if text.startswith("json"):
+-                    text = text[4:]
+-                text = text.rsplit("```", 1)[0]
+-            return json.loads(text.strip())
++            retry_response = self.model.generate_content(retry_prompt)
++            return self._parse_json_response(retry_response.text)
