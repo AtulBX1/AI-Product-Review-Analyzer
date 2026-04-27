@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models.analysis import Analysis
-from ..utils.ai_client import AIClient
+from utils.ai_client import AIClient
 import json
 
 analyze_bp = Blueprint('analyze', __name__)
