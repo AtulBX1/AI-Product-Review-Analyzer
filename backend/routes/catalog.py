@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ..utils.ai_client import AIClient
+from utils.ai_client import AIClient
 
 catalog_bp = Blueprint('catalog', __name__)
 client = AIClient()
