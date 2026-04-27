@@ -1,3 +1,4 @@
+print("STARTING APP...")
 from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -6,6 +7,7 @@ from extensions import db
 load_dotenv()
 
 def create_app():
+    print("CREATING APP...")
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///reviews.db')
