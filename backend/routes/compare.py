@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from utils.ai_client import AIClient
+from backend.utils.ai_client import AIClient
 from extensions import db
 from models.analysis import Analysis
 import json
