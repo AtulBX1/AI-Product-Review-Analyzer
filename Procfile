@@ -1,1 +1,1 @@
-gunicorn backend.app:app
+gunicorn backend.app:create_app()
