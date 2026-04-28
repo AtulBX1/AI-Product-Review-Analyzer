@@ -2,7 +2,7 @@ print("STARTING APP...")
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
@@ -16,8 +16,41 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///reviews.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    CORS(app, origins=['http://localhost:5173', 'http://localhost:3000', 'https://*.onrender.com'])
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": [
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://ai-product-review-analyzer-a607.onrender.com"
+            ],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
     db.init_app(app)
+
+    @app.after_request
+    def add_cors_headers(response):
+        origin = request.headers.get("Origin", "")
+        allowed = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "https://ai-product-review-analyzer-a607.onrender.com"
+        ]
+        if origin in allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+    @app.route("/api/<path:path>", methods=["OPTIONS"])
+    def handle_options(path):
+        response = app.make_default_options_response()
+        response.headers["Access-Control-Allow-Origin"] = "https://ai-product-review-analyzer-a607.onrender.com"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        return response
 
     from routes.analyze import analyze_bp
     from routes.history import history_bp
