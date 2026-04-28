@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: ai-review-analyzer-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+
+  - type: web
+    name: ai-review-analyzer-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://your-backend.onrender.com # placeholder

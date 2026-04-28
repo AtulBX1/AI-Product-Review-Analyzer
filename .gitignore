@@ -6,3 +6,8 @@ venv/
 node_modules/
 dist/
 .vscode/
+
+# Frontend env variables
+frontend/.env
+!frontend/.env.development
+!frontend/.env.example

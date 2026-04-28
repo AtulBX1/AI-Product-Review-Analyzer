@@ -10,7 +10,8 @@ export default function ResultsView({ data }) {
 
   const downloadFile = async (type) => {
     try {
-      const res = await fetch(`/api/export/${data.id}/${type}`)
+      const baseUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${baseUrl}/api/export/${data.id}/${type}`)
       if (!res.ok) throw new Error('Export failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)

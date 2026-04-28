@@ -16,7 +16,7 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///reviews.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    CORS(app, origins=['http://localhost:5173', 'https://*.vercel.app'])
+    CORS(app, origins=['http://localhost:5173', 'http://localhost:3000', 'https://*.onrender.com'])
     db.init_app(app)
 
     from routes.analyze import analyze_bp
