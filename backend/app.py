@@ -66,7 +66,7 @@ def create_app():
 
     @app.route('/api/health')
     def health():
-        return {'status': 'ok', 'model': 'llama-3.3-70b-versatile'}
+        return {'status': 'ok', 'model': 'openai/gpt-oss-120b'}
 
     with app.app_context():
         db.create_all()

@@ -444,7 +444,7 @@ When suitable is false OR when fit_score < 80, populate the suggestions array:
 class AIClient:
     def __init__(self):
         self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-        self.model = "llama-3.3-70b-versatile"
+        self.model = "openai/gpt-oss-120b"
 
     def _parse_json_response(self, text):
         """Parse JSON from LLM response, handling markdown fences."""
